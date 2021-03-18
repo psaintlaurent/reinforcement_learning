@@ -14,7 +14,7 @@ class BanditAgent(object):
     epsilon = .1
 
     def __init__(self, action_space):
-        self.actions_space = action_space
+        self.action_space = action_space
 
     def act(self, observation=None, reward=None, done=None):
 
@@ -22,7 +22,7 @@ class BanditAgent(object):
         random_number = rng.random()
 
         if random_number < self.epsilon or len(self.action_values) == 0:
-            output = self.actions_space.sample()
+            output = self.action_space.sample()
         elif random_number >= self.epsilon:
             output = max(self.action_values)
 
