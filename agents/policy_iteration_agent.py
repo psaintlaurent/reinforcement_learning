@@ -9,7 +9,7 @@ from numpy.random import default_rng
     The goal here is to eventually have a single policy iteration agent
     that allows for passing in different control and prediction algorithms.
     
-    For now I'm sticking with On-policy first visit Monte Carlo control for epsilon soft policies
+    For now I'm sticking with on-policy first visit Monte Carlo control for epsilon soft policies
     
     Created based on pseudocode from Sutton and Barto Bandit Algorithm p. 101
 """
@@ -23,6 +23,7 @@ class PolicyIterationAgent(object):
     gamma = None  # discount rate
     time_steps = None  # time steps per episode
 
+
     def __init__(self):
         self.action_values = {}
         self.state_values = {}
@@ -35,11 +36,57 @@ class PolicyIterationAgent(object):
         if len(self.policy) == 0:
             output = self.actions_space.sample()
         else:
-            output = self.actions_space
+            output = self.action_values
+
+    """
+        Initialize the policy by generating an episode following pi, 
+        an initially random epsilon soft policy. 
+        
+        The code for this is going to look odd.  
+        OpenAI Gym makes strange assumptions or maybe I don't fully understand gym observations.
+        SARSA should assume S0, A0, R1, S1, A1
+        OpenAI Gym examples make an assumption that an observation of the state requires an action
+        
+    """
+    def initalize_policy(self, env):
+        rng = default_rng(219215)
+        random_number = rng.random()
+
+        for idx in range(self.time_steps):
+
+            if random_number < self.epsilon or len(self.action_values) == 0: # Explore
+                action = self.action_space.sample()
+            elif random_number >= self.epsilon: # Exploit
+                idx = 0
+                for ob in self.policy.observations:
+                    if ob == current_state:
+                        action = self.policy.next_actions[idx]
+                    idx += 1
+                """ If no observation was found choose the next action at random. """
+                if action is None:
+                    action = self.action_space.sample()
+
+
+            observation, reward, done, _ = env.step(action)
+
+            if current_state is not None:
+                self.policy.add(current_state, reward, action)
+
+            current_state = observation
+            previous_reward = reward
+            previous_action = action
+
+
+
+
 
     def eval(self, env):
 
-        """ Initialize the policy by generating an episode following pi, an initially random epsilon soft policy. """
+        for idx in range(self.time_steps):
+            action = self.act(observation, reward, done)
+            observation, reward, done, _ = env.step(action)
+
+
         for idx in range(self.time_steps):
 
             if len(self.policy.observations) < self.time_steps:
@@ -52,7 +99,8 @@ class PolicyIterationAgent(object):
                     next_action = self.act(observation, reward, done)
                     observation, reward, done, _ = env.step()
 
-                    """TODO """
+
+                    """ TODO """
                     for i in range(self.time_steps):
                         pass
 
@@ -68,17 +116,19 @@ class Policy(object):
     def __init__(self):
         self.observations = []
         self.next_actions = []
+        self.reward = []
         self.epsilon = .1
 
-    """ 
-    This is a wildly inefficient method of keeping track of mappings of
-    observations to actions but I'll worry about that later
+    """
+        This is a wildly inefficient method of keeping track of mappings of
+        observations to actions but I'll worry about that later.
     """
 
     def add(self, observation, reward, next_action):
         if observation not in self.observations:
             self.observations.append(observation)
             self.next_actions.append([next_action])
+            self.next_reward.append({next_action: reward})
         else:
             idx = 0
             for val in self.observations:
@@ -90,24 +140,9 @@ class Policy(object):
         return
 
     def act(self, observation, action_space):
+        pass
 
-        """ Epsilon soft policy """
-        rng = default_rng(219215)
-        random_number = rng.random()
 
-        if random_number < self.epsilon or len(self.action_values) == 0:
-            output = action_space.sample()
-        elif random_number >= self.epsilon:
-
-            idx = 0
-            """ Slow also but this is just to start, refactor later. """
-            for ob in self.observations:
-                if observation == ob:
-                    break
-                idx += 1
-            output = self.next_actions[idx]
-
-        return self.next_actions[idx]
 
 
 if __name__ == '__main__':
