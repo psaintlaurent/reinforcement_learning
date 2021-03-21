@@ -15,11 +15,11 @@ from numpy.random import default_rng
     Created based on pseudocode from Sutton and Barto Bandit Algorithm p. 101
 """
 
+
 class PolicyIterationAgent(object):
     action_values = None  # a mapping of actions to their values
     state_values = None  # a mapping of states to their values
     policy = None  # a mapping of states to optimal actions
-    returns = None # These are the episodic discounted returns
     time_steps = None  # time steps per episode
     gamma = None  # discount rate
 
@@ -29,15 +29,13 @@ class PolicyIterationAgent(object):
         self.policy = policy.Policy()
         self.time_steps = 20
         self.gamma = .2
-        self.returns = {}
-        self.returns_count = {}
-        self.state_action_value = {}
+
 
     def act(self, observation=None, reward=None, done=None):
 
         """
             If there is no existing policy then select an action at random.
-            If there is an existing policy select an action according to the following policy.
+            If there is an existing policy select an action according to the policy
         """
         if len(self.policy) == 0:
             output = self.actions_space.sample()
@@ -48,11 +46,11 @@ class PolicyIterationAgent(object):
 
     """
         Initialize the policy by generating an episode following pi, 
-        an initially random epsilon soft policy. 
-        
+        an initially random epsilon soft policy.
         The code for this is going to look odd.
- 
+
     """
+
     def initalize_policy(self, env):
 
         """ 
@@ -66,9 +64,9 @@ class PolicyIterationAgent(object):
         for idx in range(self.time_steps):
 
             """ Select an action """
-            if random_number < self.epsilon or len(self.action_values) == 0: # Explore
+            if random_number < self.epsilon or len(self.action_values) == 0:  # Explore
                 action = self.action_space.sample()
-            elif random_number >= self.epsilon: # Exploit if there is an exploitable option
+            elif random_number >= self.epsilon:  # Exploit if there is an exploitable option
 
                 action, _ = self.policy.next_action(current_state)
                 if action is None:
@@ -81,38 +79,35 @@ class PolicyIterationAgent(object):
             if current_state is not None:
                 self.policy.add(current_state, reward, action)
 
-            current_state, previous_reward, previous_action = observation, reward, action
+            """ Store the existing state, reward and action """
+            current_state = observation
+            previous_reward = reward
+            previous_action = action
 
         return
-
 
     def eval(self, env):
 
         observation = env.reset()
-
         self.initalize_policy(env)
 
-        for observation_idx in range(reversed(self.time_steps-1)):
+        for observation_idx in range(reversed(self.time_steps - 1)):
 
             action, reward = self.policy.next_action(observation_idx + 1)
 
-            if (observation_idx, action) not in self.returns:
-                self.returns[(observation_idx, action)] = 0
+            if (observation_idx, action) not in self.policy.returns:
+                self.policy.returns[(observation_idx, action)] = 0
 
-            self.returns[(observation_idx, action)] = self.gamma * self.returns[(action, reward)] + reward
-            self.returns_count[(observation_idx, action)] += 1
-
-            if observation_idx not in self.optimal_state_action:
-                self.optimal_state_action[observation_idx] = 0
-            elif self.optimal_state_action[observation_idx] <= self.returns[(observation_idx, action)]:
-                self.optimal_state_action[observation_idx] = self.returns[(observation_idx, action)]
-
-
+            """ 
+                Calculate the first visit return.
             """
-            For tomorrow update the policy given the calculated optimal action:
-            pi(a|St) <- 1 - epsilon + epsilon/|A(St)| if a = A*
-                        epsilon/|A(St}|               if a <> A*
+            self.policy.returns[(observation_idx, action)] = self.gamma * self.policy.returns[(observation_idx, action)] + reward
+            self.policy.returns_count[(observation_idx, action)] += 1
+
+            """ 
+                Set the optimal state action
             """
+            self.policy.set_optimal_state_action(observation_idx, action)
 
         return
 
@@ -130,8 +125,5 @@ if __name__ == '__main__':
     env.seed(0)
 
     agent = PolicyIterationAgent(env.action_space)
-
-
-
 
     env.close()
