@@ -6,7 +6,6 @@ from gym import wrappers, logger
 from numpy.random import default_rng
 
 """
-
     The goal here is to eventually have a single policy iteration agent
     that allows for passing in different control and prediction algorithms.
     

@@ -3,6 +3,8 @@ This needs major refactoring
 The general idea is that this will eventually be a generic policy object
 that is managed by a Policy Iteration Agent
 """
+
+
 class Policy(object):
     observations, next_actions, reward = None, None, None
     returns, returns_count, optimal_state_action = None, None, None
@@ -51,7 +53,8 @@ class Policy(object):
         best_next_action, best_reward = None, None
 
         if idx in self.optimal_state_action:
-            best_next_action, best_reward =
+            best_next_action, best_reward = self.optimal_state_action[idx]['action'], \
+                                            self.optimal_state_action[idx]['return']
 
         if idx in self.next_reward:
             for tpl, reward in self.next_reward[idx].items():
