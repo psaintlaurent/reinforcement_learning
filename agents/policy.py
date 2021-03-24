@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 """
 This needs major refactoring
 The general idea is that this will eventually be a generic policy object
@@ -6,60 +8,68 @@ that is managed by a Policy Iteration Agent
 
 
 class Policy(object):
-    observations, next_actions, reward = None, None, None
-    returns, returns_count, optimal_state_action = None, None, None
+    observations = None
+    returns = None
+    returns_count = None
+    optimal_state_action = None
 
     def __init__(self):
-        self.observations, self.next_actions, self.reward = [], [], []
-        self.returns, self.returns_count, self.state_action_value, self.optimal_state_action = {}, {}, {}, {}
+        self.observations = OrderedDict()
+        self.returns = OrderedDict()
+        self.returns_count = OrderedDict()
+        self.optimal_state_action = OrderedDict()
 
     """
-        This is a wildly inefficient method of keeping track of mappings of
+        This is a slightly better version but still inefficient method of keeping track of mappings of
         observations to actions but I'll worry about that later.
     """
+
     def add(self, observation, reward, next_action):
+
+        observation = tuple(observation)
         if observation not in self.observations:
-            self.observations.append(observation)
-            self.next_actions.append([next_action])
-            self.next_reward.append({(observation, next_action): reward})
+            self.observations[observation] = [{
+                'next_action': next_action,
+                'next_reward': reward,
+                'discounted_returns': [],
+                'average_returns': sum(self.observations[observation]) / len(self.observations[observation]),
+                'visits': None,
+                'probability': None
+            }]
+
         else:
-            idx = self.observation_idx(observation)
-            self.next_actions[idx].append(next_action)
-            self.next_reward[idx].append({(observation, next_action): reward})
+            self.observations[observation].append({
+                'next_action': next_action,
+                'next_reward': reward,
+                'discounted_returns': [],
+                'average_returns': sum(self.observations[observation]) / len(self.observations[observation]),
+                'visits': None,
+                'probability': None
+            })
 
         return
 
-    def observation_idx(self, observation):
-        idx, policy_action = 0, None
-        for ob in self.observations:
-            if ob == observation:
-                output = idx
-                break
-            idx += 1
+    def set_optimal_state_action(self, observation, action):
 
-        return output
+        observation = tuple(observation)
+        if observation not in self.optimal_state_action or self.optimal_state_action[observation]['return'] <= \
+                self.returns[(observation, action)]:
+            self.optimal_state_action[observation] = {'action': action, 'return': self.returns[(observation, action)]}
 
-    def set_optimal_state_action(self, observation_idx, action):
-
-        if observation_idx not in self.optimal_state_action or \
-                self.optimal_state_action[observation_idx]['return'] <= self.returns[(observation_idx, action)]:
-
-            self.optimal_state_action[observation_idx] = {'action': action,
-                                                          'return': self.policy.returns[(observation_idx, action)]}
+        return
 
     def next_action(self, observation):
 
-        idx = self.get_observation_idx(observation)
-        best_next_action, best_reward = None, None
+        observation = tuple(observation)
+        best_next_action, best_next_reward = None, None
 
-        if idx in self.optimal_state_action:
-            best_next_action, best_reward = self.optimal_state_action[idx]['action'], \
-                                            self.optimal_state_action[idx]['return']
+        if observation in self.optimal_state_action:
+            best_next_action = self.optimal_state_action[observation]['action']
+            best_next_reward = self.optimal_state_action[observation]['return']
 
-        if idx in self.next_reward:
-            for tpl, reward in self.next_reward[idx].items():
-                observation, next_action = tpl
-                if next_action is None or reward > best_reward:
-                    best_next_action, best_reward = next_action, reward
+        if observation in self.observations:
+            for next_action, next_reward, _, _, _ in self.observations[observation]:
+                if best_next_action is None or next_reward > best_next_reward:
+                    best_next_action, best_next_reward = next_action, next_reward
 
-        return best_next_action, best_reward
+        return best_next_action, best_next_reward

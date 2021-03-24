@@ -47,10 +47,8 @@ class PolicyIterationAgent(object):
         Initialize the policy by generating an episode following pi, 
         an initially random epsilon soft policy.
         The code for this is going to look odd.
-
     """
-
-    def initalize_policy(self, env):
+    def initialize_policy(self, env):
 
         """ 
             Select the epsilon greedy action according to the policy.
@@ -64,12 +62,12 @@ class PolicyIterationAgent(object):
 
             """ Select an action """
             if random_number < self.epsilon or len(self.action_values) == 0:  # Explore
-                action = self.action_space.sample()
+                action = env.action_space.sample()
             elif random_number >= self.epsilon:  # Exploit if there is an exploitable option
 
                 action, _ = self.policy.next_action(current_state)
                 if action is None:
-                    action = self.action_space.sample()
+                    action = env.action_space.sample()
 
             """ Take the selected action """
             observation, reward, done, _ = env.step(action)
@@ -85,30 +83,59 @@ class PolicyIterationAgent(object):
 
         return
 
+    """
+
+    """
     def eval(self, env):
 
         observation = env.reset()
-        self.initalize_policy(env)
+        self.initialize_policy(env)
 
-        for observation_idx in range(reversed(self.time_steps - 1)):
+        """
+        The number of time steps and the number of observations should be equal.
+        """
+        count = self.time_steps - 1
+        ob_iter = reversed(self.policy.observations.keys())
+        discounted_return = 0
+        return_count = 0
 
-            action, reward = self.policy.next_action(observation_idx + 1)
+        """
+        TODO extrapolate to N-step
+        """
 
-            if (observation_idx, action) not in self.policy.returns:
-                self.policy.returns[(observation_idx, action)] = 0
+        while count > 0:
+
+            next_ob = self.policy.observations(next(ob_iter))
+            current_ob = self.policy.observations(next(ob_iter))
+
+            current_action, current_reward = self.policy.next_action(current_ob)
+            next_action, next_reward = self.policy.next_action(next_ob)
 
             """ 
-                Calculate the first visit return.
+                Calculate the first visit return
             """
+            discounted_return = self.gamma * discounted_return + next_reward
+
+            for idx in self.observations[current_ob]:
+                self.observations[current_ob][idx]['next_action']
+
+
+            count -= 1
+
+
+
+
             self.policy.returns[(observation_idx, action)] = self.gamma * self.policy.returns[(observation_idx, action)] + reward
             self.policy.returns_count[(observation_idx, action)] += 1
 
-            """ 
+            """
                 Set the optimal state action
             """
-            self.policy.set_optimal_state_action(observation_idx, action)
+        self.policy.set_optimal_state_action(observation_idx, action)
+
 
         return
+
 
 
 if __name__ == '__main__':

@@ -54,6 +54,7 @@ if __name__ == '__main__':
 
             action = agent.act(observation, reward, done)
             observation, reward, done, _ = env.step(action)
+            tpl = tuple(observation)
             step += 1
 
             print("Step %s: %s, %s, %s" % (step, observation, reward, done))
