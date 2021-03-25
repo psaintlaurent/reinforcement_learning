@@ -2,15 +2,12 @@ from collections import OrderedDict
 from numpy.random import default_rng
 
 """
-This needs major refactoring
-The general idea is that this will eventually be a generic policy object
-that is managed by a Policy Iteration Agent
+The general idea is that this will eventually be a generic policy object that is managed by a Policy Iteration Agent which passes in the specific control and prediction 
 """
+
 
 class Policy(object):
     observations = None
-    returns = None
-    returns_count = None
     optimal_state_action = None
     time_steps = None
     gamma = None  # discount rate
@@ -18,24 +15,18 @@ class Policy(object):
 
     def __init__(self):
         self.observations = OrderedDict()
-        self.returns = OrderedDict()
-        self.returns_count = OrderedDict()
         self.optimal_state_action = OrderedDict()
         self.time_steps = 20
         self.gamma = .2
         self.epsilon = .1
 
     """
-           Initialize the policy by generating an episode following pi, 
-           an initially random epsilon soft policy.
-           The code for this is going to look odd.
+           Initialize the policy by generating an episode following pi, an initially random epsilon soft policy. The code for this is going to look odd.
     """
-
     def initialize(self, env):
 
         """
-            Select the epsilon greedy action according to the policy.
-            If no observation was found choose the next action at random.
+            Select the epsilon greedy action according to the policy. If no observation was found choose the next action at random.
         """
         rng = default_rng(219215)
         random_number = rng.random()
@@ -67,8 +58,7 @@ class Policy(object):
         return
 
     """
-        This is a slightly better version but still inefficient method of keeping track of mappings of
-        observations to actions but I'll worry about that later.
+        This is a slightly better version but still inefficient method of keeping track of mappings of observations to actions but I'll worry about that later.
     """
 
     def add(self, observation, reward, next_action):
@@ -76,16 +66,16 @@ class Policy(object):
         observation = tuple(observation)
         if observation not in self.observations:
             self.observations[observation] = [{
-                'next_action': next_action, 'next_reward': reward, 'discounted_returns': [],
-                'average_returns': sum(self.observations[observation]) / len(self.observations[observation]),
-                'visits': None, 'probability': None
+                'next_action'    : next_action, 'next_reward': reward, 'discounted_returns': [],
+                'average_returns': sum(self.observations[observation]['discounted_returns']) / len(self.observations[observation]['discounted_returns']),
+                'visits'         : None, 'probability': None
             }]
 
         else:
             self.observations[observation].append({
-                'next_action': next_action, 'next_reward': reward, 'discounted_returns': [],
-                'average_returns': sum(self.observations[observation]) / len(self.observations[observation]),
-                'visits': None, 'probability': None
+                'next_action'    : next_action, 'next_reward': reward, 'discounted_returns': [],
+                'average_returns': sum(self.observations[observation]['discounted_returns']) / len(self.observations[observation]['discounted_returns']),
+                'visits'         : None, 'probability': None
             })
 
         return
@@ -93,10 +83,18 @@ class Policy(object):
     def set_optimal_state_action(self, observation, action):
 
         observation = tuple(observation)
-        if observation not in self.optimal_state_action or self.optimal_state_action[observation]['return'] <= \
-                self.returns[(observation, action)]:
-            self.optimal_state_action[observation] = {'action': action,
-                                                      'return': self.returns[(observation, action)]}
+
+        for idx in range(len(observation)):
+            if observation[idx]['next_action'] == action:
+                max_return = max(observation[idx]['discounted_returns'])
+        """
+            Set the new optimal state action
+        """
+        if observation not in self.optimal_state_action or self.optimal_state_action[observation]['return'] < max_return:
+            self.optimal_state_action[observation] = {
+                'action': action,
+                'return': max_return
+            }
 
         return
 
@@ -122,13 +120,13 @@ class Policy(object):
         self.initialize(env)
 
         """
-        The number of time steps and the number of observations should be equal after initialization
+            The number of time steps and the number of observations should be equal after initialization
         """
         count = self.time_steps - 1
         ob_iter = reversed(self.observations.keys())
 
         """
-        TODO: extrapolate to N-step
+            TODO: extrapolate to N-step
         """
         while count > 0:
 
@@ -147,24 +145,15 @@ class Policy(object):
                 if self.observations[current_ob][idx]['next_action'] == current_next_action:
                     continue
 
-                """
-                Calculate the first visit discounted return for the state-action and increment the number of 
-                visits. 
-                """
-                if len(self.observations[current_ob][idx]['discounted_returns']) == \
-                        self.observations[current_ob][idx]['visits']:
+                """ Calculate the first visit discounted return for the state-action and increment the number of visits. """
+                if len(self.observations[current_ob][idx]['discounted_returns']) == self.observations[current_ob][idx]['visits']:
                     self.observations[current_ob][idx]['discounted_returns'].append(self.gamma * 0 + next_reward)
-
-                self.observations[current_ob][idx]['discounted_returns'][-1] = \
-                    self.gamma * self.observations[current_ob][idx]['discounted_returns'] + next_reward
-
-                self.observations[current_ob][idx]['visits'] += 1
+                    self.observations[current_ob][idx]['visits'] += 1
+                else:
+                    self.observations[current_ob][idx]['discounted_returns'][-1] = self.gamma * self.observations[current_ob][idx]['discounted_returns'] + next_reward
 
             count -= 1
 
-            """
-                Set the optimal state action
-            """
             self.set_optimal_state_action(current_ob, current_next_action)
 
         return

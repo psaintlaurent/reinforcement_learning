@@ -5,8 +5,7 @@ from gym import wrappers, logger
 
 
 """
-    The goal here is to eventually have a single policy iteration agent
-    that allows for passing in different control and prediction algorithms.
+    The goal here is to eventually have a single policy iteration agent that allows for passing in different control and prediction algorithms.
     
     For now I'm sticking with on-policy first visit Monte Carlo control for epsilon soft policies
     
