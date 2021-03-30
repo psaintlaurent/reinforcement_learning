@@ -7,8 +7,10 @@ The general idea is that this will eventually be a generic policy object that is
 #TODO implement object serialization/deserialization so that 
 """
 
-
 class Policy(object):
+    pass
+
+class MCFirstVisitPolicy(Policy):
     observations = None
     optimal_state_action = None
     time_steps = None
