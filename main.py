@@ -1,5 +1,4 @@
 import gym
-from gym import envs
 
 env = gym.make('CartPole-v0')
 """

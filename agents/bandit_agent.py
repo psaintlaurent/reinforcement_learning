@@ -1,12 +1,13 @@
 import argparse
+
 import gym
-import sys
-from gym import wrappers, logger
+from gym import logger, wrappers
 from numpy.random import default_rng
 
 """
     Created based on pseudocode from Sutton and Barto Bandit Algorithm p. 32
 """
+
 
 class BanditAgent(object):
 
