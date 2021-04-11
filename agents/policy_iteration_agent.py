@@ -25,7 +25,7 @@ class PolicyIterationAgent(object):
     def __init__(self):
         self.action_values = {}
         self.state_values = {}
-        self.policy = policy.Policy()
+        self.policy = policy.MCFirstVisitPolicy()
         self.time_steps = 20
         self.gamma = .2
         self.epsilon = .1
@@ -43,7 +43,7 @@ class PolicyIterationAgent(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=None)
-    parser.add_argument('env_id', nargs='?', default='CartPole-v0', help='Select the environment to run.')
+    parser.add_argument('env_id', nargs='?', default='Taxi-v3', help='Select the environment to run.')
     args = parser.parse_args()
 
     logger.set_level(logger.INFO)
@@ -53,28 +53,49 @@ if __name__ == '__main__':
     env = wrappers.Monitor(env, directory=outdir, force=True)
     env.seed(0)
 
-    agent = PolicyIterationAgent()
-    policy = policy.Policy()
-    agent.seed(policy, env)
 
+    """ 
+        To deal with openai gym I'm setting the standard that an env must be reset at the beginning of a method and cleaned up at the end of a method.
+        If you pass an env object it should be safe to reset it and start working with it after a method call.
+    """
+    agent = PolicyIterationAgent()
+    policy = policy.MCFirstVisitPolicy()
+    agent.seed(policy, env)
     action = env.action_space.sample()
+
+    current_state = env.reset()
     observation, reward, done, _ = env.step(action)
-    observation = tuple([round(val, policy.precision) for val in observation]) # TODO Find a way to handle this centrally along with env.step(c) calls
 
     print("Start test of the policy")
     action = env.action_space.sample()
-    for idx in range(300):
 
-        if action is not None:
-            observation, reward, done, _ = env.step(action)
-            observation = tuple([round(val, policy.precision) for val in observation])  # TODO Find a way to handle this centrally along with env.step(c) calls
-            print("Policy test, State: %s Action: %s Reward: %s" % (observation, action, reward))
+    g = 0
 
-            if done:
-                print("Policy test done after exceeding boundary.")
-                env.reset()
-                break
+    for cnt in range(80000):
+        if action is None:
+            print("No state-action available in the policy")
+            continue
 
-        action, reward = policy.next_action(observation)
+
+
+        observation, reward, done, _ = env.step(action)
+
+        print(observation)
+        current_state = observation
+        env.render()
+
+        print("Policy test, State: %s Action: %s Reward: %s" % (current_state, action, reward))
+        prev_action, prev_reward = action, reward
+
+
+
+
+        if done:
+            print("Policy test done after exceeding boundary.")
+            env.reset()
+            break
+
+        action, reward = policy.next_action(current_state)
 
     env.close()
+    exit()

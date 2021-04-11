@@ -1,14 +1,17 @@
 from collections import OrderedDict
-
+import math
 from numpy.random import default_rng
+import random
 
 """
 The general idea is that this will eventually be a generic policy object that is managed by a Policy Iteration Agent which passes in the specific control and prediction 
-#TODO implement object serialization/deserialization so that 
+#TODO implement object serialization/deserialization so that.
 """
+
 
 class Policy(object):
     pass
+
 
 class MCFirstVisitPolicy(Policy):
     observations = None
@@ -17,178 +20,237 @@ class MCFirstVisitPolicy(Policy):
     gamma = None  # discount rate
     epsilon = None
     precision = None
+    rng = None
 
     def __init__(self):
         self.observations = OrderedDict()
         self.optimal_state_action = OrderedDict()
-        self.time_steps = 4000000
+        self.time_steps = 100000
         self.gamma = .2
-        self.epsilon = .1
+        self.epsilon = .3
         self.precision = 2
-
+        self.rng = default_rng(seed=2192158217327913210321738232)
 
     """
            Initialize the policy by generating an episode following pi, an initially random epsilon soft policy. The code for this is going to look odd.
     """
+
     def initialize(self, env):
 
-        """
-            Select the epsilon greedy action according to the policy. If no observation was found choose the next action at random.
-        """
-        rng = default_rng(219215)
-        random_number = rng.random()
-
         observation = env.reset()
-        observation = tuple([round(val, self.precision) for val in observation])
         current_state = observation
         action = None
+        count = self.time_steps
 
-        for idx in range(self.time_steps):
+        while count > 0:
 
-            """ Select an action """
-            if random_number < self.epsilon:  # Explore
-                action = env.action_space.sample()
-            elif random_number >= self.epsilon:  # Exploit if there is an exploitable option
-                action, _ = self.next_action(current_state)
-                if action is None:
-                    action = env.action_space.sample()
+            count -= 1
+            random_number = self.rng.random()
 
-            """ Take the selected action """
+            if random_number >= self.epsilon and current_state is not None:   action, _ = self.next_action(current_state)
+            if action is None or random_number < self.epsilon:    action, _ = self.next_action_random(env, current_state)
+
             observation, reward, done, _ = env.step(action)
-            observation = tuple([round(val, self.precision) for val in observation])
 
-            """ Add a new state -> action mapping to the existing policy """
-            if current_state is not None:
-                self.add(current_state, reward, action)
+            if done:    observation = env.reset()
+            if current_state is not None:   self.add(current_state, action, reward)
 
-            """ Store the existing state, reward and action """
+            if count % 5000 == 0:
+                pass
             current_state, previous_reward, previous_action = observation, reward, action
 
-            if done:
-                env.reset()
+        """ cleanup environment """
+        while not done:
+            observation, reward, done, _ = env.step(action)
 
         return
+
+    def next_action_random(self, env, current_state):
+        actions_taken = []
+        if current_state in self.observations and len(self.observations[current_state]) > 0:
+            actions_taken = [self.observations[current_state][idx]['next_action'] for idx in range(len(self.observations[current_state]))]
+
+        action = env.action_space.sample()
+
+        if len(actions_taken) < env.action_space.n:
+            while action in actions_taken:
+                action = env.action_space.sample()
+
+        return action, None
 
     """
         This is a slightly better version but still inefficient method of keeping track of mappings of observations to actions but I'll worry about that later.
     """
-    def add(self, observation, reward, next_action):
+
+    def add(self, observation, next_action, reward):
 
         if observation not in self.observations:
             self.observations[observation] = []
 
         idx = -1
         for iidx in range(len(self.observations[observation])):
-            if self.observations[observation][idx]['next_action'] == next_action:
+            if self.observations[observation][iidx]['next_action'] == next_action:
                 idx = iidx
 
         if idx == -1:
             self.observations[observation].append({
-                'next_action'    : next_action, 'next_reward': reward, 'discounted_returns': [],
-                'visits'         : 0, 'probability': .000000000
+                'next_action'       : next_action,
+                'next_reward'       : reward,
+                'discounted_returns': [0],
+                'visits'            : 1,
+                'probability'       : .000000000
             })
 
-            if len(self.observations[observation][idx]['discounted_returns']) == 0:
-                self.observations[observation][idx]['average_returns'] = 0
-            else:
-                self.observations[observation][idx]['average_returns'] = sum(self.observations[observation][idx]['discounted_returns']) / len(self.observations[observation][idx]['discounted_returns'])
+            self.observations[observation][idx]['average_returns'] = sum(self.observations[observation][idx]['discounted_returns']) / len(self.observations[observation][idx]['discounted_returns'])
 
         return
 
-    def set_optimal_state_action(self, observation, action):
+    def set_optimal_state_action(self, observation):
 
-        observation = tuple([round(val, self.precision) for val in observation])
         max_return = 0
 
         for idx in range(len(self.observations[observation])):
-            if self.observations[observation][idx]['next_action'] == action:
-                if len(self.observations[observation][idx]['discounted_returns']) > 0:
-                    max_return = max(self.observations[observation][idx]['discounted_returns'])
 
-        """
-            Set the new optimal state action
-        """
-        if observation not in self.optimal_state_action or self.optimal_state_action[observation]['return'] < max_return:
-            self.optimal_state_action[observation] = {
-                'action': action,
-                'return': max_return
-            }
+            self.observations[observation][idx]['average_returns'] = sum(self.observations[observation][idx]['discounted_returns']) / len(self.observations[observation][idx]['discounted_returns'])
+            if self.observations[observation][idx]['average_returns'] >= max_return:
+                max_return = self.observations[observation][idx]['average_returns']
+
+                self.optimal_state_action[observation] = {
+                    'action': self.observations[observation][idx]['next_action'],
+                    'return': self.observations[observation][idx]['average_returns']
+                }
 
         return
 
     def next_action(self, observation):
 
-        observation = tuple(observation)
         best_next_action, best_next_reward = None, None
 
-        if observation in self.optimal_state_action:
-            best_next_action = self.optimal_state_action[observation]['action']
-            best_next_reward = self.optimal_state_action[observation]['return']
+        random_number = self.rng.random()
 
-        if observation in self.observations:
-            for observation_data in self.observations[observation]:
-                next_action, next_reward = observation_data['next_action'], observation_data['next_reward']
-                if best_next_action is None or next_reward > best_next_reward:
-                    best_next_action, best_next_reward = next_action, next_reward
+        """ These may need to be updated at some point """
+        greedy_action = 1 - self.epsilon
+        non_greedy_action = self.epsilon
+
+        if greedy_action > random_number:
+
+            if observation in self.observations:
+                for observation_data in self.observations[observation]:
+
+                    next_action, next_reward = observation_data['next_action'], observation_data['average_returns']
+                    if best_next_action is None or next_reward > best_next_reward:
+                        best_next_action, best_next_reward = next_action, next_reward
+                        self.set_optimal_state_action(observation)
+
+        elif non_greedy_action <= random_number:
+
+            if observation in self.observations:
+                keys = [i for i in range(len(self.observations[observation]))]
+                self.rng.shuffle(keys)
+                best_next_action, best_next_reward = self.observations[observation][keys[0]]['next_action'], self.observations[observation][keys[0]]['average_returns']
 
         return best_next_action, best_next_reward
 
+    def update_optimal_state_actions(self, observation, action_idx):
+
+        self.observations[observation][action_idx]['average_returns'] = sum(self.observations[observation][action_idx]['discounted_returns']) / \
+                                                                        len(self.observations[observation][action_idx]['discounted_returns'])
+
+        if observation in self.optimal_state_action:
+            if self.observations[observation][action_idx]['average_returns'] >= self.optimal_state_action[observation]['return']:
+                self.optimal_state_action[observation]['action'] = self.observations[observation][action_idx]['next_action']
+                self.optimal_state_action[observation]['return'] = self.observations[observation][action_idx]['average_returns']
+        else:
+            self.set_optimal_state_action(observation)
+
+        return
+
+    def get_action_idx(self, observation, action):
+
+        idx = -1
+        if observation in self.observations:
+            for iidx in range(len(self.observations[observation])):
+                if self.observations[observation][iidx]['next_action'] == action:
+                    idx = iidx
+
+        return idx
+
+    def inc_visit(self, state, action):
+
+        idx = self.get_action_idx(state, action)
+        if state in self.observations and self.observations[state][idx]['next_action'] == action:
+            self.observations[state][idx]['visits'] += 1
+
+        return
+
+    """ Generate episode according to the policy """
+
+    def generate_episode(self, env, max_length=100):
+
+        cnt, done, episode = 0, False, []
+        rng = default_rng(215219)
+
+        random_number = rng.random()
+
+        greedy_action = 1 - self.epsilon
+        non_greedy_action = self.epsilon
+        observation = env.reset()
+
+        while cnt < max_length and not done:
+
+            if greedy_action > random_number:
+                action, _ = self.next_action(observation)
+            if non_greedy_action <= random_number:
+                action, _ = self.next_action_random(env, observation)
+            cnt += 1
+
+            state = observation
+            observation, reward, done, _ = env.step(action)
+            if non_greedy_action <= random_number:
+                self.add(state, action, reward)
+
+            self.inc_visit(state, action)
+            episode.append((state, action, reward))
+
+        """ cleanup environment """
+        while not done:
+            observation, reward, done, _ = env.step(action)
+
+        return episode
+
     def eval(self, env):
 
-        observation = env.reset()
-        observation = tuple([round(val, self.precision) for val in observation]) # TODO Find a way to handle this centrally along with env.step(c) calls
         self.initialize(env)
 
-        """
-            The number of time steps and the number of observations should be equal after initialization
-        """
-        count = len(self.observations)
+        g = 0
+        for i in range(self.time_steps):
 
-        """
-            Setup two iterators so that I can simulate an overlapping offset sliding window where [0][1] [1][2] [T][T+1] 
-            is captured on each iteration of the while loop.
-        """
-        ob_iter_1 = reversed(self.observations.keys())
-        ob_iter_2 = reversed(self.observations.keys())
-        next(ob_iter_1) #offset by one
+            episode = self.generate_episode(env)
+            appeared_in_episode = OrderedDict()
 
-        """
-            TODO: extrapolate to N-step
-        """
-        while count > 2:
+            if i % 100000 == 0:
+                pass
 
-            next_ob = next(ob_iter_1)
-            next_ob_data = self.observations[next_ob]
+            for idx in range(len(episode) - 1):
 
-            current_ob = next(ob_iter_2)
-            current_ob_data = self.observations[current_ob]
+                state, action, reward = episode[idx]
+                next_state, next_action, next_reward = episode[idx + 1]
 
-            print("Time Step Countdown: %s, ob: %s ob+1: %s: \n" % (count, next_ob, current_ob))
+                """ Add any new observations. """
+                if len(self.observations[state]) == 0:
+                    self.add(state, action, reward)
 
-            current_next_action, current_reward = self.next_action(current_ob)
-            next_next_action, next_reward = self.next_action(next_ob)
+                action_idx = self.get_action_idx(state, action)
 
-            """
-                Calculate the first visit return for each (S_T, A_T) when (S_T, A_T) does not appear in the policy
-            """
-            for idx in range(len(self.observations[current_ob])):
+                """ This may have a bug in the event a new observation appears in the environment, this is just a start. """
 
-                """ 
-                    Skip iteration in the event there is existing state-action.
-                """
-                if self.observations[current_ob][idx]['next_action'] == current_next_action:
-                    continue
+                g = (g * self.gamma) + next_reward
+                if (state, action) not in appeared_in_episode:
+                    self.observations[state][action_idx]['discounted_returns'].append(g)
+                    appeared_in_episode[(state, action)] = True
 
-                """
-                    Calculate the first visit discounted return for the state-action and increment the number of visits. 
-                """
-                if len(self.observations[current_ob][idx]['discounted_returns']) == self.observations[current_ob][idx]['visits']:
-                    self.observations[current_ob][idx]['discounted_returns'].append(self.gamma * 0 + next_reward)
-                    self.observations[current_ob][idx]['visits'] += 1
-                else:
-                    self.observations[current_ob][idx]['discounted_returns'][-1] = self.gamma * self.observations[current_ob][idx]['discounted_returns'][-1] + next_reward
 
-            count -= 1
-            self.set_optimal_state_action(current_ob, current_next_action)
+                self.set_optimal_state_action(state)
+                self.update_optimal_state_actions(state, action_idx)
 
         return
